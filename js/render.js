@@ -181,7 +181,8 @@ function renderNode(n) {
     L.node.setAttribute('y', ly);
     g.appendChild(L.node);
     n._lab = L.node;
-  } else n._lab = null;
+    n._labBox = { x: lx, y: ly, w: L.w, h: L.h }; // where the label sits inside the node
+  } else n._lab = n._labBox = null;
   // full extent of the node, label included (a distribution's label can stick out past its icon)
   const x0 = Math.min(0, L ? lx : 0),
     y0 = Math.min(0, L ? ly : 0),
@@ -227,9 +228,16 @@ function rectVP(e, m) {
   return { x: p1.x, y: p1.y, w: p2.x - p1.x, h: p2.y - p1.y };
 }
 
-function labelRect(n, m) {
-  if (n._lab) return rectVP(n._lab, m);
-  return { x: n.cx - n._w / 2, y: n.cy - n._h / 2, w: n._w, h: n._h };
+/**
+ * The node's label box in diagram coordinates, worked out from where it was placed rather than
+ * measured: Firefox measures a MathJax <svg> in its own internal units, which made the box far
+ * too big and sent arrows to the whole label off to one side.
+ */
+function labelRect(n) {
+  const x = n.cx - n._w / 2,
+    y = n.cy - n._h / 2,
+    b = n._labBox;
+  return b ? { x: x + b.x, y: y + b.y, w: b.w, h: b.h } : { x, y, w: n._w, h: n._h };
 }
 
 function anchorEls(n, a) {
@@ -317,7 +325,7 @@ function edgeSegs(e, m) {
         .filter(o => o.r.w > 0)
     : [];
   if (!rects.length) {
-    const r = labelRect(B, m);
+    const r = labelRect(B);
     rects = [{ r, sc: r }];
   }
   // a symbol used more than once gets one arrow, to its nearest copy, as in the book
@@ -454,9 +462,33 @@ function applyView() {
   $('#zoomOut').textContent = Math.round(view.k * 100) + '%';
 }
 
+/**
+ * The area the diagram covers: every node's extent plus the arrows and their labels. Worked out
+ * from the nodes rather than with getBBox on the whole drawing, which Firefox gets wrong for
+ * MathJax labels (it measures them in MathJax's internal units, far too big).
+ */
+function diagramBox() {
+  let x0 = Infinity,
+    y0 = Infinity,
+    x1 = -Infinity,
+    y1 = -Infinity;
+  const add = (ax, ay, bx, by) => {
+    x0 = Math.min(x0, ax);
+    y0 = Math.min(y0, ay);
+    x1 = Math.max(x1, bx);
+    y1 = Math.max(y1, by);
+  };
+  for (const n of state.nodes)
+    if (n._g) add(n.cx - n._left, n.cy - n._top, n.cx + n._right, n.cy + n._bottom);
+  // arrows hold no MathJax, so measuring them is safe in every browser
+  const e = state.edges.length ? edgesL.getBBox() : null;
+  if (e && e.width + e.height) add(e.x, e.y, e.x + e.width, e.y + e.height);
+  return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
+}
+
 function fit() {
   if (!state.nodes.length) return;
-  const bb = vp.getBBox();
+  const bb = diagramBox();
   const r = svg.getBoundingClientRect();
   if (!bb.width || !r.width) return;
   const k = Math.min((r.width - 48) / bb.width, (r.height - 48) / bb.height, 1.6);

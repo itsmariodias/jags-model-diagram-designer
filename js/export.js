@@ -8,8 +8,8 @@ function buildSVG() {
   const prev = sel;
   sel = null;
   renderAll();
-  const bb = vp.getBBox(),
-    pad = 20,
+  const bb = diagramBox(),
+    pad = 28, // the same white border as before the box was worked out from the nodes
     x = bb.x - pad,
     y = bb.y - pad,
     w = Math.ceil(bb.width + 2 * pad),
