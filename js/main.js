@@ -82,6 +82,8 @@ function wire() {
   });
 
   initCanvasInteraction();
+  initHistory();
+  initMenus();
   initThemeToggle();
 }
 
@@ -99,6 +101,7 @@ window.jmdBoot = function () {
     msgs = [{ t: 'note', m: 'Restored your last diagram. Redraw from code to start over.' }];
     showMsgs();
   } else drawFromCode();
+  persist(); // the starting point for undo
 };
 
 wire();

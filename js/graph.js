@@ -2,7 +2,7 @@
  * Turn parsed JAGS statements into a diagram: nodes (distributions, expressions, data labels)
  * and the arrows between them.
  *
- * Along the way it unrolls small literal loops, folds simple deterministic nodes into the
+ * Along the way it unrolls small literal loops, folds indexed deterministic helpers into the
  * parameters that use them, pulls linear predictors into their own bracketed node, and shows
  * normal/t precision as a standard deviation. Each simplification adds a note for the user.
  */
@@ -63,7 +63,8 @@ function buildFromJAGS(src) {
     }
     S.push(s);
   }
-  // deterministic nodes: keep linear predictors, fold the rest into whatever uses them
+  // deterministic nodes: keep linear predictors and named scalar parameters, fold indexed
+  // helpers (sh[i] <- …) into whatever uses them
   const usedKeys = new Set(),
     genericUse = new Set();
   S.forEach(s =>
@@ -72,10 +73,13 @@ function buildFromJAGS(src) {
       if (keyOf(r) === r.name) genericUse.add(r.name);
     }),
   );
-  // a hard-coded entry such as alpha[2] <- 0 that is only ever used as alpha[g[i]] has
-  // nowhere to fold into, so it stays a node of its own
+  // Stays a node of its own:
+  //  - a scalar such as nu <- nuMinusOne + 1, so ν still appears where it is used
+  //  - a hard-coded entry such as alpha[2] <- 0 that is only ever used as alpha[g[i]], which
+  //    has nowhere to fold into
   const keepAsNode = s =>
-    keyOf(s.lhs) !== s.lhs.name && !usedKeys.has(keyOf(s.lhs)) && genericUse.has(s.lhs.name);
+    !s.lhs.idx ||
+    (keyOf(s.lhs) !== s.lhs.name && !usedKeys.has(keyOf(s.lhs)) && genericUse.has(s.lhs.name));
   const inl = {};
   const folded = [];
   for (const s of S)
@@ -149,7 +153,8 @@ function buildFromJAGS(src) {
       _s: s,
       _ast: s.kind === 'stoch' ? s.args : [s.rhs],
     };
-    if (n.kind === 'expr') n.brace = !!s.virtual || isPredictor(s.rhs);
+    // brace under expressions; a bare constant (alpha[2] <- 0) is drawn without one
+    if (n.kind === 'expr') n.brace = !!s.virtual || hasRef(s.rhs);
     prod[keyOf(s.lhs)] = { n, s };
     nodes.push(n);
   }
@@ -175,7 +180,7 @@ function buildFromJAGS(src) {
         if (resolve(r).length) A.add(keyOf(r));
       }),
     );
-  let prec = false;
+  const prec = new Set(); // which precision rewrites happened: 'sd' and/or 'var'
   for (const n of nodes) {
     const s = n._s,
       self = keyOf(s.lhs);
@@ -184,10 +189,10 @@ function buildFromJAGS(src) {
       let args = n._ast.slice();
       let dist = JMAP[f] || 'generic';
       if (['dnorm', 'dt', 'dlnorm'].includes(f) && args[1]) {
-        const sd = precToSD(args[1]);
-        if (sd) {
-          args[1] = sd;
-          prec = true;
+        const sc = precToScale(args[1]);
+        if (sc) {
+          args[1] = sc.a;
+          prec.add(sc.kind);
         }
       }
       const lo = s.trunc && strip(s.trunc[0]);
@@ -215,10 +220,15 @@ function buildFromJAGS(src) {
       n.info = s.virtual ? 'linear predictor' : `${jagsRef(s.lhs)} <- …`;
     }
   }
-  if (prec)
+  if (prec.has('sd'))
     msgs.push({
       t: 'note',
       m: 'JAGS writes normal and t spreads as precision; the diagram shows the standard deviation instead (1/S² → S).',
+    });
+  if (prec.has('var'))
+    msgs.push({
+      t: 'note',
+      m: 'JAGS writes normal and t spreads as precision; where that is 1/V, the diagram shows the variance V instead.',
     });
   const loopVars = s => new Set((s.loops || []).map(L => L.v));
   const litIndex = r =>

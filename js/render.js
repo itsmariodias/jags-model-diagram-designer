@@ -168,6 +168,43 @@ function anchorEls(n, a) {
   return n._g ? [...n._g.querySelectorAll('.anc-' + CSS.escape(a))] : [];
 }
 
+/** The tagged glyph's sub/superscript group if it has one (σ → σ_y), else the glyph itself. */
+function withScripts(x) {
+  const p = x.parentNode;
+  const scripted =
+    p &&
+    p.getAttribute &&
+    /^(msub|msup|msubsup)$/.test(p.getAttribute('data-mml-node') || '') &&
+    p.firstElementChild === x;
+  return scripted ? p : x;
+}
+
+/** A standalone copy of a rendered symbol, to show it outside the canvas (e.g. in the inspector). */
+function symbolPreview(x, px = 18) {
+  const src = withScripts(x);
+  const bb = src.getBBox();
+  if (!bb.width) return null;
+  // MathJax draws in 1/1000 em units inside a scale(1,-1) flip
+  const pad = 60,
+    w = bb.width + 2 * pad,
+    hgt = bb.height + 2 * pad;
+  const out = el('svg', {
+    viewBox: `${bb.x - pad} ${-(bb.y + bb.height) - pad} ${w} ${hgt}`,
+    width: (w / 1000) * px,
+    height: (hgt / 1000) * px,
+    'aria-hidden': 'true',
+  });
+  const g = el(
+    'g',
+    { transform: 'scale(1,-1)', fill: 'currentColor', stroke: 'currentColor', 'stroke-width': 0 },
+    out,
+  );
+  const c = src.cloneNode(true);
+  c.removeAttribute('transform');
+  g.appendChild(c);
+  return out;
+}
+
 function srcPoint(n) {
   return { x: n.cx - n._w / 2 + n._src.x, y: n.cy - n._h / 2 + n._src.y };
 }
@@ -206,13 +243,7 @@ function edgeSegs(e, m) {
     ? anchorEls(B, e.anchor)
         .map(x => {
           const r = rectVP(x, m);
-          const sc =
-            x.parentNode &&
-            x.parentNode.getAttribute &&
-            /^(msup|msub|msubsup)$/.test(x.parentNode.getAttribute('data-mml-node') || '') &&
-            x.parentNode.firstElementChild === x
-              ? rectVP(x.parentNode, m)
-              : r;
+          const sc = withScripts(x) === x ? r : rectVP(withScripts(x), m);
           return { r, sc };
         })
         .filter(o => o.r.w > 0)

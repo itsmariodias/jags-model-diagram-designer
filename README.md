@@ -23,14 +23,15 @@ python3 -m http.server 8000
 
 1. **Write or paste a model** in the left pane (or pick one from _Load example…_), then press **Draw diagram from code** (or <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Enter</kbd>).
 2. **Arrange** – drag nodes to move them, drag the paper to pan, scroll to zoom. _Auto-layout_ rearranges everything in layers; _Fit_ zooms to the whole diagram.
-3. **Edit** – click a curve, expression or arrow to edit it in the inspector on the right. You can change the distribution shape, the name on its baseline, its LaTeX parameters, icon size and label position, or an arrow's relation (`~` / `=`), target symbol and index label. _+ Distribution_, _+ Expression_ and _+ Label_ add new nodes. <kbd>Delete</kbd> removes the selection.
-4. **Export** – _Copy SVG_, _Save SVG_, or _Save PNG_ (3× resolution). Exports are always on white paper.
+3. **Edit** – click a curve, expression or arrow to edit it in the inspector on the right. You can change the distribution shape, the name on its baseline, its LaTeX parameters (with a live preview underneath that also flags LaTeX mistakes), icon size and label position, or an arrow's relation (`~` / `=`), target symbol and index label. The _+ Add_ menu adds a new distribution, expression or label. <kbd>Delete</kbd> removes the selection.
+4. **Undo / redo** – <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Z</kbd> and <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> (or <kbd>Ctrl</kbd>+<kbd>Y</kbd>), or the undo / redo buttons in the toolbar. Every change to the diagram can be undone, including _Auto-layout_ and redrawing from code. The code editor keeps its own undo.
+5. **Export** – the _Export_ menu has _Copy SVG_, _Save SVG_ and _Save PNG_ (3× resolution). Exports are always on white paper.
 
 Your diagram, code and settings are autosaved in the browser (localStorage), so a reload picks up where you left off. Edits in the diagram are **not** written back to the JAGS code. Redrawing from code replaces the diagram.
 
 ### Pointing arrows at a symbol
 
-Arrows aim at symbols tagged with `\anchor{name}{…}` in a node's LaTeX. For example, `\mu,\ \anchor{sigma}{\sigma}` lets an arrow point at the σ specifically. Diagrams drawn from code tag every referenced parameter automatically.
+Arrows drawn from your code already point at the right symbols, so usually there's nothing to do. If you draw an arrow yourself, it points at the whole label of the node it goes to. To point it at one symbol, mark that symbol in the node's label: wrap it as `\anchor{s}{\sigma}`, where `s` is any short name and `\sigma` is the symbol. It then appears under the arrow's _Points at_ setting.
 
 ### Theme
 
@@ -39,15 +40,16 @@ The toolbar button on the right cycles between **System**, **Light** and **Dark*
 ## What the JAGS reader understands
 
 - `model { … }` blocks (`data { … }` blocks are skipped), `for (i in a:b)` loops, `~` and `<-` statements, and `#` comments.
+- Variable names become math symbols: Greek names become letters, and digits or `.`/`_` parts become subscripts (`beta0` → β₀, `sigma.y` → σ<sub>y</sub>). A `Prime` suffix adds a prime, since JAGS names can't contain `'`: `nuPrime`, `nu.prime` and `nu_prime` all draw as ν′.
 - Link functions on the left-hand side, such as `logit(p[i]) <- …`, which are drawn as their inverse (`logistic(…)`).
 - Truncation `T(0,)` / `I(0,)` on `dnorm` and `dt`, drawn as half-normal, half-t or half-Cauchy.
 - Distributions: `dnorm`, `dt`, `dgamma`, `dbeta`, `dunif`, `dexp`, `dlnorm`, `dlogis`, `ddexp`, `dweib`, `dchisqr`, `dpar`, `dbern`, `dbin`/`dbinom`, `dpois`, `dnegbin`, `dcat`, `ddirch`/`ddirich`, `dmnorm`, `dmt`. Anything else gets a generic curve with its name.
 
 To keep diagrams readable, it also simplifies a few things and leaves a note under the editor each time:
 
-- Normal and t **precisions** written as `1/S^2`, `1/pow(S,2)` or `pow(S,-2)` are shown as the standard deviation `S`.
+- Normal and t **precisions** are shown as the spread you wrote them from: `1/S^2`, `1/pow(S,2)` or `pow(S,-2)` as the standard deviation `S`, and `1/V` or `pow(V,-1)` as the variance `V`. A precision given directly (`dnorm(mu, tau)`) is shown as written.
 - **Linear predictors** (sums of terms, `inprod`, or those wrapped in `ilogit`/`exp`/`phi`) get their own bracketed expression node, even when written inline in a distribution.
-- **Other deterministic nodes** are folded into the parameters that use them.
+- **Indexed deterministic helpers** such as `sh[i] <- pow(mu[i], 2) / pow(sigma, 2)` are folded into the parameters that use them. Scalars such as `nu <- nuMinusOne + 1` keep their own node, so ν still appears where it is used.
 - **Small literal loops** (up to 8 iterations) over priors that the model uses one at a time, such as `beta[1]`, `beta[2]`, …, are drawn as separate distributions.
 - **Entries written at fixed indices** link up with how the model uses them. If you write `alpha[1] ~ dnorm(…)`, `alpha[2] <- 0` and `alpha[3] ~ dnorm(…)` but use `alpha[g[i]]`, each entry gets an arrow to α labelled with its index. In the other direction, `beta[1]` used against a general `beta[j] ~ …` prior is linked to that prior.
 
@@ -67,28 +69,17 @@ js/
   graph.js            parsed model → diagram nodes and arrows
   examples.js         example models
   state.js            app state and localStorage persistence
+  history.js          undo / redo
   render.js           MathJax typesetting, node and arrow drawing, pan/zoom
   layout.js           auto-layout
   interaction.js      dragging, panning, zooming, selection, adding nodes
   inspector.js        right-hand editing panel
+  menus.js            toolbar dropdown menus (Add, Export)
   export.js           SVG / PNG export
   main.js             wiring and start-up
 ```
 
 The scripts are plain (non-module) scripts that share one global scope, so the page also works when opened directly from disk. Code is formatted with [Prettier](https://prettier.io/) using `.prettierrc.json`.
-
-## Deployment
-
-[`.github/workflows/pages.yml`](.github/workflows/pages.yml) runs on every push and pull request. It syntax-checks the scripts and checks formatting with Prettier. On `main`, it then publishes `index.html`, `css/` and `js/` to GitHub Pages.
-
-One-time setup: in the repository's **Settings → Pages**, set **Source** to **GitHub Actions**.
-
-To run the same checks locally:
-
-```sh
-for f in js/*.js; do node --check "$f"; done
-npx prettier@3.3.3 --check .
-```
 
 ## Credits
 

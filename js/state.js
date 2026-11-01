@@ -27,21 +27,27 @@ const svg = $('#canvas'),
 const byId = id => state.nodes.find(n => n.id === id);
 let saveT = 0;
 
+/** Call after any change: records an undo step and autosaves, debounced so a drag or a burst of typing counts once. */
 function save() {
   clearTimeout(saveT);
-  saveT = setTimeout(() => {
-    try {
-      localStorage.setItem(
-        STORE,
-        JSON.stringify({
-          code: $('#code').value,
-          settings: state.settings,
-          nodes: state.nodes.map(clean),
-          edges: state.edges,
-        }),
-      );
-    } catch (e) {}
-  }, 300);
+  saveT = setTimeout(persist, 300);
+}
+
+/** Run a pending save() right away. */
+function persist() {
+  clearTimeout(saveT);
+  recordHistory();
+  try {
+    localStorage.setItem(
+      STORE,
+      JSON.stringify({
+        code: $('#code').value,
+        settings: state.settings,
+        nodes: state.nodes.map(clean),
+        edges: state.edges,
+      }),
+    );
+  } catch (e) {}
 }
 
 function clean(n) {

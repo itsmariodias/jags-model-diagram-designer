@@ -23,6 +23,59 @@ function nodeName(n) {
   return n.kind === 'dist' ? `${n.name || n.dist}: ${plain(n.tex)}` : plain(n.tex);
 }
 
+/** A node as it looks in the diagram: distribution name, then its label typeset with MathJax. */
+function nodeRef(n) {
+  const wrap = h('<span class="node-ref"></span>');
+  if (!n) {
+    wrap.textContent = '?';
+    return wrap;
+  }
+  wrap.title = nodeName(n); // plain-text version, also read by screen readers
+  wrap.setAttribute('aria-label', nodeName(n));
+  if (n.kind === 'dist') {
+    const D = DISTS[n.dist] || DISTS.generic;
+    wrap.append(h(`<span class="dist-name">${esc(n.name != null ? n.name : D.name)}</span>`));
+  }
+  if (n.tex) wrap.append(wrappingMath(n.tex, 17));
+  return wrap;
+}
+
+/** Live preview under a LaTeX box: how the label will look, any LaTeX error, and which symbols are arrow targets. */
+function texPreview(box, t) {
+  box.replaceChildren(h('<span class="lbl">Preview</span>'));
+  if (!(t || '').trim()) {
+    box.append(h('<p class="help">Nothing to show yet.</p>'));
+    return;
+  }
+  const math = wrappingMath(t, 20);
+  box.append(math);
+  const err = math.querySelector('[data-mml-node="merror"]');
+  if (err) {
+    const why = err.getAttribute('data-mjx-error') || 'check the braces and commands';
+    box.append(h(`<p class="tex-error">LaTeX problem: ${esc(why)}</p>`));
+  } else if (math.querySelector('[class*="anc-"]'))
+    box.append(h('<p class="help">Highlighted symbols are ones arrows can point at.</p>'));
+}
+
+/** Typeset a label as pieces that wrap onto new lines, baselines lined up (see texWrapPieces). */
+function wrappingMath(t, px) {
+  const math = h('<span class="math" aria-hidden="true"></span>');
+  let svgs = texWrapPieces(t).map(p => texSVG(p, px).node);
+  if (svgs.length > 1 && svgs.some(s => s.querySelector('[data-mml-node="merror"]')))
+    svgs = [texSVG(t, px).node]; // a split broke the TeX somehow: show it whole
+  svgs.forEach((s, k) => {
+    // MathJax puts the baseline at y = 0 of the viewBox; sit each piece on the text baseline
+    const vb = s
+      .getAttribute('viewBox')
+      .split(/[\s,]+/)
+      .map(Number);
+    s.style.verticalAlign = (-(vb[1] + vb[3]) / 1000) * px + 'px';
+    if (k) math.append(document.createElement('wbr'));
+    math.append(s);
+  });
+  return math;
+}
+
 function rangeField(label, id, min, max, step, val, fmt, on) {
   const f = document.createElement('div');
   f.className = 'field';
@@ -92,12 +145,12 @@ function renderInspector() {
     insp.append(h('<div class="divider"></div>'));
     insp.append(
       h(
-        `<p class="help">Click a curve, expression or arrow to edit it. Drag to move. Arrows aim at symbols tagged in the label with <code>\\anchor{name}{…}</code>, so <code>\\anchor{sigma}{\\sigma}</code> makes the σ a target.</p>`,
+        `<p class="help">Click a curve, expression or arrow to change it, and drag to move it. Arrows drawn from your code already point at the right symbols.</p>`,
       ),
     );
     insp.append(
       h(
-        `<p class="help">Edits here are not written back to the JAGS code. Redrawing from code replaces the diagram.</p>`,
+        `<p class="help">Changes here don’t update the JAGS code, and <i>Draw diagram from code</i> starts the diagram over. Undo (Ctrl/⌘+Z) brings it back.</p>`,
       ),
     );
     return;
@@ -147,13 +200,17 @@ function renderInspector() {
       insp.append(fn);
     }
     const ft = h(
-      `<div class="field"><label for="iTex">${n.kind === 'dist' ? 'Parameters' : 'Label'} (LaTeX)</label><textarea id="iTex" spellcheck="false">${esc(n.tex || '')}</textarea></div>`,
+      `<div class="field"><label for="iTex">${n.kind === 'dist' ? 'Parameters' : 'Label'} (LaTeX)</label><textarea id="iTex" spellcheck="false" aria-describedby="iTexPreview">${esc(n.tex || '')}</textarea><div class="tex-preview" id="iTexPreview" aria-live="polite"></div></div>`,
     );
+    const preview = ft.querySelector('.tex-preview');
+    const showPreview = () => texPreview(preview, n.tex);
+    showPreview();
     ft.querySelector('textarea').addEventListener('input', e => {
       n.tex = e.target.value;
       clearTimeout(texT);
       texT = setTimeout(() => {
         renderAll();
+        showPreview();
         save();
       }, 160);
     });
@@ -229,9 +286,16 @@ function renderInspector() {
       ul.append(h('<li style="cursor:default"><span class="help">None yet</span></li>'));
     outs.forEach(e => {
       const T = byId(e.to);
-      const li = h(
-        `<li><span class="sym">${esc(e.type)}</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(T ? nodeName(T) : '?')}</span><span class="info">${e.anchor ? esc(e.anchor) : ''}</span></li>`,
-      );
+      const li = h(`<li><span class="sym">${esc(e.type)}</span></li>`);
+      li.append(nodeRef(T));
+      // the symbol it points at, as drawn
+      const x = T && e.anchor ? anchorEls(T, e.anchor)[0] : null;
+      const pic = x && symbolPreview(x, 15);
+      if (pic) {
+        const at = h(`<span class="target" title="points at ${esc(e.anchor)}"></span>`);
+        at.append(pic);
+        li.append(at);
+      }
       li.addEventListener('click', () => select({ t: 'edge', id: e.id }));
       ul.append(li);
     });
@@ -239,30 +303,30 @@ function renderInspector() {
     const others = state.nodes.filter(x => x.id !== n.id);
     if (others.length) {
       const fadd = h(
-        '<div class="row"><select id="iAddTo" aria-label="Arrow target" style="flex:1;min-width:0"></select><button class="btn sm" id="iAdd">Add arrow</button></div>',
+        `<div class="menu inline"><button class="btn sm" aria-haspopup="menu" aria-expanded="false">+ Add arrow to… ${CHEVRON_SVG}</button><div class="menu-list" role="menu" aria-label="Arrow target" hidden></div></div>`,
       );
-      const s = fadd.querySelector('select');
+      const list = fadd.querySelector('[role="menu"]');
       others.forEach(o => {
-        const op = document.createElement('option');
-        op.value = o.id;
-        op.textContent = nodeName(o);
-        s.append(op);
+        const it = h('<button role="menuitem"></button>');
+        it.append(nodeRef(o));
+        it.addEventListener('click', () => {
+          const e = {
+            id: nid('e'),
+            from: n.id,
+            to: o.id,
+            anchor: null,
+            type: n.kind === 'dist' ? '~' : '=',
+            index: '',
+          };
+          state.edges.push(e);
+          sel = { t: 'edge', id: e.id };
+          renderAll();
+          renderInspector();
+          save();
+        });
+        list.append(it);
       });
-      fadd.querySelector('button').addEventListener('click', () => {
-        const e = {
-          id: nid('e'),
-          from: n.id,
-          to: s.value,
-          anchor: null,
-          type: n.kind === 'dist' ? '~' : '=',
-          index: '',
-        };
-        state.edges.push(e);
-        sel = { t: 'edge', id: e.id };
-        renderAll();
-        renderInspector();
-        save();
-      });
+      setupMenu(fadd);
       insp.append(fadd);
     }
     const del = h('<button class="btn danger">Delete node</button>');
@@ -278,16 +342,14 @@ function renderInspector() {
   $('#inspTitle').textContent = 'Arrow';
   const A = byId(e.from),
     B = byId(e.to);
-  insp.append(
-    h(
-      `<div class="field"><span class="lbl">From</span><span>${esc(A ? nodeName(A) : '?')}</span></div>`,
-    ),
-  );
-  insp.append(
-    h(
-      `<div class="field"><span class="lbl">To</span><span>${esc(B ? nodeName(B) : '?')}</span></div>`,
-    ),
-  );
+  for (const [lbl, n] of [
+    ['From', A],
+    ['To', B],
+  ]) {
+    const f = h(`<div class="field"><span class="lbl">${lbl}</span></div>`);
+    f.append(nodeRef(n));
+    insp.append(f);
+  }
   const seg = h(
     `<div class="field"><span class="lbl">Relation</span><div class="seg" role="group" aria-label="Relation"><button data-v="~" aria-pressed="${e.type === '~'}" title="Stochastic: drawn from">~</button><button data-v="=" aria-pressed="${e.type === '='}" title="Deterministic: equals">=</button></div></div>`,
   );
@@ -306,29 +368,42 @@ function renderInspector() {
       for (const c of x.classList) if (c.startsWith('anc-')) anchors.add(c.slice(4));
     });
   if (e.anchor) anchors.add(e.anchor);
-  const fs = h(
-    '<div class="field"><label for="eAnc">Points at</label><select id="eAnc"></select></div>',
+  // one button per symbol, showing it as it's drawn in the diagram
+  const fa = h(
+    '<div class="field"><span class="lbl" id="eAncLbl">Points at</span><div class="chips" role="group" aria-labelledby="eAncLbl"></div></div>',
   );
-  const s = fs.querySelector('select');
-  [['', 'Whole label'], ...[...anchors].map(a => [a, 'symbol “' + a + '”'])].forEach(([v, t]) => {
-    const o = document.createElement('option');
-    o.value = v;
-    o.textContent = t;
-    if ((e.anchor || '') === v) o.selected = true;
-    s.append(o);
+  const chips = fa.querySelector('.chips');
+  [null, ...anchors].forEach(a => {
+    const b = h(`<button class="chip" aria-pressed="${(e.anchor || null) === a}"></button>`);
+    const x = a && B ? anchorEls(B, a)[0] : null;
+    const pic = x && symbolPreview(x);
+    if (!a) b.textContent = 'Whole label';
+    else if (pic) {
+      b.append(pic);
+      b.title = a; // the name it's tagged with, for anyone editing the LaTeX
+      b.setAttribute('aria-label', 'symbol ' + a);
+    } else b.textContent = a;
+    b.addEventListener('click', () => {
+      e.anchor = a;
+      chips.querySelectorAll('.chip').forEach(c => c.setAttribute('aria-pressed', String(c === b)));
+      renderAll();
+      save();
+    });
+    chips.append(b);
   });
-  s.addEventListener('change', () => {
-    e.anchor = s.value || null;
-    renderAll();
-    save();
-  });
-  insp.append(fs);
-  if (!anchors.size)
+  insp.append(fa);
+  if (!anchors.size) {
     insp.append(
       h(
-        '<p class="help">Tag a symbol in the target’s label with <code>\\anchor{name}{…}</code> to aim at it.</p>',
+        `<p class="help">This arrow points at the whole label. To point it at one symbol instead, that symbol needs to be marked in the label it points to.</p>`,
       ),
     );
+    insp.append(
+      h(
+        `<details class="help"><summary>How do I mark a symbol?</summary><p>Click the node this arrow points to. In its label, wrap the symbol like this: <code>\\anchor{s}{\\sigma}</code>, where <code>s</code> is any short name and <code>\\sigma</code> is the symbol. It then shows up under “Points at”.</p></details>`,
+      ),
+    );
+  }
   const fi = h(
     `<div class="field"><label for="eIdx">Index label</label><input type="text" id="eIdx" value="${esc(e.index || '')}" placeholder="e.g. i"></div>`,
   );

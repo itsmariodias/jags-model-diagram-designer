@@ -83,36 +83,34 @@ function isPredictor(a) {
   return terms(a).filter(hasRef).length >= 2;
 }
 
-function precToSD(a) {
+/**
+ * JAGS gives normal/t spreads as a precision. Recover the spread the user had in mind:
+ *   1/S^2, 1/pow(S,2), 1/(S*S), pow(S,-2), S^-2  → { a: S, kind: 'sd' }
+ *   1/V, pow(V,-1), V^-1                         → { a: V, kind: 'var' }
+ * Anything else (e.g. a named precision tau) → null, and is shown as written.
+ */
+function precToScale(a) {
   a = strip(a);
   if (!a) return null;
+  const isNum = (x, v) => (x = strip(x)) && x.k === 'num' && +x.v === v;
+  const isNeg = (x, v) => (x = strip(x)) && x.k === 'neg' && isNum(x.a, v);
   const sq = b => {
     b = strip(b);
     if (!b) return null;
-    if (b.k === 'bin' && b.op === '^' && strip(b.b).k === 'num' && +strip(b.b).v === 2)
-      return strip(b.a);
-    if (
-      b.k === 'call' &&
-      b.f === 'pow' &&
-      b.args[1] &&
-      strip(b.args[1]).k === 'num' &&
-      +strip(b.args[1]).v === 2
-    )
-      return strip(b.args[0]);
+    if (b.k === 'bin' && b.op === '^' && isNum(b.b, 2)) return strip(b.a);
+    if (b.k === 'call' && b.f === 'pow' && isNum(b.args[1], 2)) return strip(b.args[0]);
     if (b.k === 'bin' && b.op === '*' && JSON.stringify(strip(b.a)) === JSON.stringify(strip(b.b)))
       return strip(b.a);
     return null;
   };
-  if (a.k === 'bin' && a.op === '/' && strip(a.a).k === 'num' && +strip(a.a).v === 1)
-    return sq(a.b);
-  if (a.k === 'call' && a.f === 'pow' && a.args[1]) {
-    const e = strip(a.args[1]);
-    if (e.k === 'neg' && strip(e.a).k === 'num' && +strip(e.a).v === 2) return strip(a.args[0]);
+  if (a.k === 'bin' && a.op === '/' && isNum(a.a, 1)) {
+    const s = sq(a.b);
+    return s ? { a: s, kind: 'sd' } : { a: strip(a.b), kind: 'var' };
   }
-  if (a.k === 'bin' && a.op === '^') {
-    const e = strip(a.b);
-    if (e.k === 'neg' && strip(e.a).k === 'num' && +strip(e.a).v === 2) return strip(a.a);
-  }
+  const [base, exp] =
+    a.k === 'call' && a.f === 'pow' ? a.args : a.k === 'bin' && a.op === '^' ? [a.a, a.b] : [];
+  if (base && isNeg(exp, 2)) return { a: strip(base), kind: 'sd' };
+  if (base && isNeg(exp, 1)) return { a: strip(base), kind: 'var' };
   return null;
 }
 
