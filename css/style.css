@@ -264,6 +264,53 @@ textarea {
   font-size: 12px;
 }
 
+/* File menu: a dot while the workspace has unsaved changes */
+.dirty-dot {
+  display: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+#btnFile.dirty .dirty-dot {
+  display: inline-block;
+}
+
+/* dropping a workspace file on the page */
+body.dropping .stage {
+  outline: 2px dashed var(--accent);
+  outline-offset: -6px;
+}
+
+/* "Unsaved changes" dialog */
+.dialog {
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--raised);
+  color: var(--fg);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+}
+.dialog::backdrop {
+  background: rgba(0, 0, 0, 0.35);
+}
+.dialog h2 {
+  margin: 0 0 6px;
+  font-size: 16px;
+  font-weight: 600;
+}
+.dialog p {
+  margin: 0 0 16px;
+  color: var(--muted);
+}
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 /* icon-only buttons (undo / redo), sized to match the text buttons */
 .btn.icon {
   display: inline-flex;

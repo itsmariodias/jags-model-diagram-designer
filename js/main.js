@@ -84,6 +84,7 @@ function wire() {
   initCanvasInteraction();
   initHistory();
   initMenus();
+  initWorkspace();
   initThemeToggle();
 }
 
@@ -102,6 +103,7 @@ window.jmdBoot = function () {
     showMsgs();
   } else drawFromCode();
   persist(); // the starting point for undo
+  if (!had) markSaved(); // a fresh start has nothing unsaved yet
 };
 
 wire();

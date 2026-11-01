@@ -29,6 +29,15 @@ python3 -m http.server 8000
 
 Your diagram, code and settings are autosaved in the browser (localStorage), so a reload picks up where you left off. Edits in the diagram are **not** written back to the JAGS code. Redrawing from code replaces the diagram.
 
+### Saving and opening
+
+The **File** menu saves your workspace (the JAGS code, the diagram and the display settings) as a `.json` file, and opens one again. <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>S</kbd> saves and <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>O</kbd> opens; you can also drop a workspace file onto the page. Workspace files are a good way to keep several diagrams, move work to another computer, or send a diagram to someone.
+
+- A dot on **File** means there are changes you haven't saved to a file yet.
+- Opening a file when you have unsaved changes asks whether to save them first.
+- Undo history isn't saved; opening a file starts a fresh one.
+- Files from other people are checked before they're used, and links in their LaTeX are disabled.
+
 ### Pointing arrows at a symbol
 
 Arrows drawn from your code already point at the right symbols, so usually there's nothing to do. If you draw an arrow yourself, it points at the whole label of the node it goes to. To point it at one symbol, mark that symbol in the node's label: wrap it as `\anchor{s}{\sigma}`, where `s` is any short name and `\sigma` is the symbol. It then appears under the arrow's _Points at_ setting.
@@ -76,6 +85,7 @@ js/
   inspector.js        right-hand editing panel
   menus.js            toolbar dropdown menus (Add, Export)
   export.js           SVG / PNG export
+  workspace.js        save / open workspace files
   main.js             wiring and start-up
 ```
 

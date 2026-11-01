@@ -41,6 +41,37 @@
           </div>
         </div>
         <div class="tools" role="toolbar" aria-label="Diagram tools">
+          <div class="menu">
+            <button
+              class="btn"
+              id="btnFile"
+              aria-haspopup="menu"
+              aria-expanded="false"
+              aria-controls="fileMenu"
+            >
+              File <span class="dirty-dot" aria-hidden="true"></span>
+              <svg class="chev" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+                <path
+                  d="M2 3.5 5 6.5 8 3.5"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </button>
+            <div class="menu-list" role="menu" id="fileMenu" aria-label="Workspace file" hidden>
+              <button role="menuitem" id="btnOpen">
+                Open workspace… <span class="note"></span>
+              </button>
+              <button role="menuitem" id="btnSave">
+                Save workspace <span class="note"></span>
+              </button>
+            </div>
+          </div>
+          <input type="file" id="fileInput" accept=".json,application/json" hidden />
+          <span class="sep"></span>
           <button class="btn icon" id="btnUndo" title="Undo (Ctrl/⌘+Z)" aria-label="Undo" disabled>
             <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
               <path
@@ -184,6 +215,16 @@
         <div class="insp" id="insp"></div>
       </aside>
 
+      <dialog class="dialog" id="unsavedDialog" aria-labelledby="dlgTitle">
+        <h2 id="dlgTitle">Unsaved changes</h2>
+        <p>You have unsaved changes. Save them before opening another workspace?</p>
+        <div class="dialog-actions">
+          <button class="btn" id="dlgCancel">Cancel</button>
+          <button class="btn" id="dlgDiscard">Don’t save</button>
+          <button class="btn primary" id="dlgSave">Save first</button>
+        </div>
+      </dialog>
+
       <footer class="credits">
         Diagram style from John K. Kruschke’s
         <a href="https://sites.google.com/site/doingbayesiandataanalysis/"
@@ -219,6 +260,7 @@
     <script src="js/inspector.js"></script>
     <script src="js/menus.js"></script>
     <script src="js/export.js"></script>
+    <script src="js/workspace.js"></script>
     <script src="js/main.js"></script>
   </body>
 </html>

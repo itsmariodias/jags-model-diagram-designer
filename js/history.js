@@ -25,6 +25,15 @@ function recordHistory() {
   updateHistoryButtons();
 }
 
+/** Forget all undo/redo steps; the current diagram becomes the starting point (used when opening a file). */
+function resetHistory() {
+  clearTimeout(saveT); // a change still waiting to be recorded belongs to the old workspace
+  hist.past = [];
+  hist.future = [];
+  hist.current = snapshot();
+  updateHistoryButtons();
+}
+
 function undo() {
   persist(); // an edit still waiting on the save debounce becomes its own step first
   if (!hist.past.length) return;
