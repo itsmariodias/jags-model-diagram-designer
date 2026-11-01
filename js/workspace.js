@@ -18,24 +18,14 @@ function workspaceFromState() {
     settings: state.settings,
     nodes: state.nodes.map(clean),
     edges: state.edges,
+    drawn: state.drawn,
   };
 }
 
 /** Short fingerprint of the workspace, to tell whether it changed since it was last saved. */
 function workspaceKey() {
   const { code, settings, nodes, edges } = workspaceFromState();
-  const s = JSON.stringify({ code, settings, nodes, edges });
-  // cyrb53 string hash
-  let h1 = 0xdeadbeef,
-    h2 = 0x41c6ce57;
-  for (let i = 0; i < s.length; i++) {
-    const c = s.charCodeAt(i);
-    h1 = Math.imul(h1 ^ c, 2654435761);
-    h2 = Math.imul(h2 ^ c, 1597334677);
-  }
-  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
-  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
-  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
+  return hash(JSON.stringify({ code, settings, nodes, edges }));
 }
 
 const isDirty = () => savedKey !== workspaceKey();
@@ -101,7 +91,8 @@ function parseWorkspace(o) {
     icon: clamp(s.icon, 0.6, 1.8, 1),
     gap: clamp(s.gap, 20, 180, 64),
   };
-  return { code: isStr(o.code) ? o.code : '', settings, nodes, edges };
+  const code = isStr(o.code) ? o.code : '';
+  return { code, settings, nodes, edges, drawn: checkDrawn(o.drawn, code) };
 }
 
 /** Replace the current workspace with a checked one; undo history starts afresh. */
@@ -110,6 +101,7 @@ function applyWorkspace(ws, name) {
   state.edges = ws.edges;
   state.settings = ws.settings;
   state.code = ws.code;
+  state.drawn = ws.drawn;
   $('#code').value = ws.code;
   bumpUid(ws.nodes, ws.edges);
   workspaceName = name;
@@ -119,6 +111,7 @@ function applyWorkspace(ws, name) {
   renderInspector();
   msgs = [{ t: 'note', m: `Opened ${name}.` }];
   showMsgs();
+  updateSync();
   resetHistory();
   markSaved();
   toast('Opened ' + name);
@@ -144,28 +137,18 @@ async function openWorkspaceFile(file) {
 }
 
 /**
- * Run \`next\` now if there's nothing unsaved; otherwise ask first (Save first / Don't save /
- * Cancel). \`next\` runs inside the button's click, so it may open the file picker.
+ * Run `next` now if there's nothing unsaved; otherwise ask first (Save first / Don't save /
+ * Cancel). `next` runs inside the button's click, so it may open the file picker.
  */
 function confirmUnsaved(next) {
   if (!isDirty()) return next();
-  const dlg = $('#unsavedDialog');
-  const finish = go => {
-    dlg.close();
-    if (go) next();
-  };
-  $('#dlgSave').onclick = () => {
-    saveWorkspace();
-    finish(true);
-  };
-  $('#dlgDiscard').onclick = () => finish(true);
-  $('#dlgCancel').onclick = () => finish(false);
-  dlg.oncancel = e => {
-    e.preventDefault(); // Escape: close it ourselves so the handlers above are the only path
-    finish(false);
-  };
-  dlg.showModal();
-  $('#dlgSave').focus();
+  askDialog($('#unsavedDialog'), $('#dlgSave'), {
+    dlgSave: () => {
+      saveWorkspace();
+      next();
+    },
+    dlgDiscard: next,
+  });
 }
 
 function openWorkspace() {
@@ -188,7 +171,7 @@ function initWorkspace() {
   $('#btnSave .note').textContent = mac ? '⌘S' : 'Ctrl+S';
   document.addEventListener('keydown', e => {
     if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
-    if ($('#unsavedDialog').open) return;
+    if (document.querySelector('dialog[open]')) return;
     const k = e.key.toLowerCase();
     if (k === 's') {
       e.preventDefault(); // not the browser's "Save page"

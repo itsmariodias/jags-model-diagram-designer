@@ -40,10 +40,15 @@ function nodeRef(n) {
   return wrap;
 }
 
-/** Live preview under a LaTeX box: how the label will look, any LaTeX error, and which symbols are arrow targets. */
-function texPreview(box, t) {
+/**
+ * Live preview under a node's LaTeX box: how the label will look, any LaTeX error, arrows that
+ * lost the symbol they pointed at, and a hint when words run together. setTex(t) replaces the
+ * label (used by the "Wrap in \text{…}" button).
+ */
+function texPreview(box, n, setTex) {
+  const t = n.tex || '';
   box.replaceChildren(h('<span class="lbl">Preview</span>'));
-  if (!(t || '').trim()) {
+  if (!t.trim()) {
     box.append(h('<p class="help">Nothing to show yet.</p>'));
     return;
   }
@@ -53,8 +58,38 @@ function texPreview(box, t) {
   if (err) {
     const why = err.getAttribute('data-mjx-error') || 'check the braces and commands';
     box.append(h(`<p class="tex-error">LaTeX problem: ${esc(why)}</p>`));
-  } else if (math.querySelector('[class*="anc-"]'))
-    box.append(h('<p class="help">Highlighted symbols are ones arrows can point at.</p>'));
+    return;
+  }
+  // arrows aimed at a symbol that is no longer marked in this label
+  for (const e of state.edges) {
+    if (e.to !== n.id || !e.anchor || anchorEls(n, e.anchor).length) continue;
+    const from = byId(e.from);
+    const what = !from
+      ? 'another node'
+      : from.kind === 'dist'
+        ? 'the ' + from.name
+        : plain(from.tex);
+    box.append(
+      h(
+        `<p class="tex-error">The arrow from ${esc(what)} pointed at “${esc(e.anchor)}”, which isn’t marked in this label any more, so it points at the whole label. Put <code>\\anchor{${esc(e.anchor)}}{…}</code> back to fix it.</p>`,
+      ),
+    );
+  }
+  if (math.querySelector('[class*="anc-"]'))
+    box.append(
+      h(
+        '<p class="help">Highlighted symbols are ones arrows can point at: the parts wrapped in <code>\\anchor{name}{…}</code>. Keep those wrappers when you edit.</p>',
+      ),
+    );
+  // words outside \text{…} lose their spaces in maths mode
+  const bare = t.replace(/\\(text|mathrm|textrm|mbox)\{[^}]*\}/g, '').replace(/\\[A-Za-z]+/g, '');
+  if (/[A-Za-z]{2,}\s+[A-Za-z]{2,}/.test(bare)) {
+    const hint = h(
+      '<p class="help">Spaces are ignored in maths, so words run together. Put words in <code>\\text{…}</code>. <button class="btn sm">Wrap in \\text{…}</button></p>',
+    );
+    hint.querySelector('button').addEventListener('click', () => setTex(`\\text{${t.trim()}}`));
+    box.append(hint);
+  }
 }
 
 /** Typeset a label as pieces that wrap onto new lines, baselines lined up (see texWrapPieces). */
@@ -202,10 +237,17 @@ function renderInspector() {
     const ft = h(
       `<div class="field"><label for="iTex">${n.kind === 'dist' ? 'Parameters' : 'Label'} (LaTeX)</label><textarea id="iTex" spellcheck="false" aria-describedby="iTexPreview">${esc(n.tex || '')}</textarea><div class="tex-preview" id="iTexPreview" aria-live="polite"></div></div>`,
     );
-    const preview = ft.querySelector('.tex-preview');
-    const showPreview = () => texPreview(preview, n.tex);
+    const preview = ft.querySelector('.tex-preview'),
+      box = ft.querySelector('textarea');
+    const setTex = t => {
+      n.tex = box.value = t;
+      renderAll();
+      showPreview();
+      save();
+    };
+    const showPreview = () => texPreview(preview, n, setTex);
     showPreview();
-    ft.querySelector('textarea').addEventListener('input', e => {
+    box.addEventListener('input', e => {
       n.tex = e.target.value;
       clearTimeout(texT);
       texT = setTimeout(() => {

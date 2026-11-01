@@ -2,9 +2,10 @@
  * Turn parsed JAGS statements into a diagram: nodes (distributions, expressions, data labels)
  * and the arrows between them.
  *
- * Along the way it unrolls small literal loops, folds indexed deterministic helpers into the
- * parameters that use them, pulls linear predictors into their own bracketed node, and shows
- * normal/t precision as a standard deviation. Each simplification adds a note for the user.
+ * Along the way it unrolls small literal loops, folds indexed deterministic helpers that combine
+ * several variables into the parameters that use them, pulls linear predictors into their own
+ * bracketed node, and shows normal/t precision as a standard deviation (including a precision
+ * defined on its own line). Each simplification adds a note for the user.
  */
 
 function buildFromJAGS(src) {
@@ -77,16 +78,41 @@ function buildFromJAGS(src) {
   //  - a scalar such as nu <- nuMinusOne + 1, so ν still appears where it is used
   //  - a hard-coded entry such as alpha[2] <- 0 that is only ever used as alpha[g[i]], which
   //    has nowhere to fold into
+  //  - a helper built from a single variable, such as kappa[c] <- kappaMinusTwo[c] + 2, which
+  //    the book draws as its own node too
   const keepAsNode = s =>
     !s.lhs.idx ||
-    (keyOf(s.lhs) !== s.lhs.name && !usedKeys.has(keyOf(s.lhs)) && genericUse.has(s.lhs.name));
+    (keyOf(s.lhs) !== s.lhs.name && !usedKeys.has(keyOf(s.lhs)) && genericUse.has(s.lhs.name)) ||
+    topRefs(s.rhs).size < 2;
+  // A precision defined on its own line (tau <- 1/sigma^2) and only ever used as a normal or t
+  // precision is folded in too, so the spread it is built from shows instead.
+  const PREC_DISTS = ['dnorm', 'dt', 'dlnorm'];
+  const precUses = {},
+    allUses = {},
+    stochNames = new Set();
+  S.forEach(s => {
+    if (s.kind === 'stoch') stochNames.add(s.lhs.name);
+    walk(s.rhs, r => (allUses[r.name] = (allUses[r.name] || 0) + 1));
+    const p = s.kind === 'stoch' && PREC_DISTS.includes(s.rhs.f) && strip(s.rhs.args[1]);
+    if (p && p.k === 'ref') precUses[p.name] = (precUses[p.name] || 0) + 1;
+  });
+  const isPrecVar = s =>
+    precUses[s.lhs.name] === allUses[s.lhs.name] &&
+    !stochNames.has(s.lhs.name) &&
+    !!precToScale(s.rhs);
   const inl = {};
-  const folded = [];
-  for (const s of S)
-    if (s.kind === 'det' && !isPredictor(s.rhs) && !keepAsNode(s)) {
+  const folded = [],
+    precVars = new Set();
+  for (const s of S) {
+    if (s.kind !== 'det' || isPredictor(s.rhs)) continue;
+    if (isPrecVar(s)) {
+      inl[keyOf(s.lhs)] = s;
+      precVars.add(s.lhs.name);
+    } else if (!keepAsNode(s)) {
       inl[keyOf(s.lhs)] = s;
       folded.push(jagsRef(s.lhs));
     }
+  }
   const renameIdx = (body, def, ref) => {
     const m = {};
     (def.lhs.idx || []).forEach((x, p) => {
@@ -180,7 +206,7 @@ function buildFromJAGS(src) {
         if (resolve(r).length) A.add(keyOf(r));
       }),
     );
-  const prec = new Set(); // which precision rewrites happened: 'sd' and/or 'var'
+  const prec = new Set(); // which precision rewrites happened: 'sd', 'var', and 'num' for numbers
   for (const n of nodes) {
     const s = n._s,
       self = keyOf(s.lhs);
@@ -191,6 +217,7 @@ function buildFromJAGS(src) {
       if (['dnorm', 'dt', 'dlnorm'].includes(f) && args[1]) {
         const sc = precToScale(args[1]);
         if (sc) {
+          if (strip(args[1]).k === 'num') prec.add('num');
           args[1] = sc.a;
           prec.add(sc.kind);
         }
@@ -223,7 +250,12 @@ function buildFromJAGS(src) {
   if (prec.has('sd'))
     msgs.push({
       t: 'note',
-      m: 'JAGS writes normal and t spreads as precision; the diagram shows the standard deviation instead (1/S² → S).',
+      m: `JAGS writes normal and t spreads as precision; the diagram shows the standard deviation instead (1/S² → S${prec.has('num') ? ', and a number p → 1/√p' : ''}).`,
+    });
+  if (precVars.size)
+    msgs.push({
+      t: 'note',
+      m: `${[...precVars].join(', ')} ${precVars.size > 1 ? 'are' : 'is'} only used as a precision, so the diagram shows the spread ${precVars.size > 1 ? 'they are' : 'it is'} built from instead.`,
     });
   if (prec.has('var'))
     msgs.push({
@@ -255,13 +287,16 @@ function buildFromJAGS(src) {
         // a hard-coded entry feeding a general use: label the arrow with the entry's index
         const entry = useKey !== k && lit ? [lit] : [];
         if (entry.length) linked.add(ps.lhs.name);
+        // as in the book, a ~ arrow carries every index of what it draws (beta ~ s → θ_s); an =
+        // arrow only the ones the expression it feeds doesn't loop over
+        const stoch = P.kind === 'dist';
         edges.push({
           id: nid('e'),
           from: P.id,
           to: C.id,
           anchor: cls(useKey),
-          type: P.kind === 'dist' ? '~' : '=',
-          index: [...[...pv].filter(v => !cv.has(v)), ...entry].join(','),
+          type: stoch ? '~' : '=',
+          index: [...[...pv].filter(v => stoch || !cv.has(v)), ...entry].join(','),
         });
       }
     }

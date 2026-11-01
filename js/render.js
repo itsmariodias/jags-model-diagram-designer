@@ -38,6 +38,57 @@ function texSVG(t, px) {
   return { node: c.s.cloneNode(true), w: c.w, h: c.h };
 }
 
+/**
+ * A label typeset over several centred lines no wider than maxW (as far as its pieces allow),
+ * breaking only between comma-separated parameters. Returns null if it fits on one line or a
+ * split breaks it.
+ */
+function texBlock(t, px, maxW) {
+  // whole parameters: rejoin the pieces texWrapPieces split at + and −
+  const pieces = [];
+  let acc = '';
+  for (const p of texWrapPieces(t)) {
+    acc += p;
+    if (acc.trimEnd().endsWith(',')) {
+      pieces.push(acc);
+      acc = '';
+    }
+  }
+  if (acc) pieces.push(acc);
+  if (pieces.length < 2) return null;
+  const lines = [];
+  let cur = '',
+    curW = 0;
+  for (const p of pieces) {
+    const w = texSVG(p, px).w;
+    if (cur && curW + w > maxW) {
+      lines.push(cur);
+      cur = '';
+      curW = 0;
+    }
+    cur += p;
+    curW += w;
+  }
+  lines.push(cur);
+  if (lines.length < 2) return null;
+  const parts = lines.map(l => texSVG(l.replace(/^\\ /, ''), px));
+  if (parts.some(p => p.node.querySelector('[data-mml-node="merror"]'))) return null;
+  const W = Math.max(...parts.map(p => p.w)),
+    lead = px * 0.12;
+  const out = el('svg', { overflow: 'visible' });
+  let y = 0;
+  parts.forEach(p => {
+    p.node.setAttribute('x', (W - p.w) / 2);
+    p.node.setAttribute('y', y);
+    out.appendChild(p.node);
+    y += p.h + lead;
+  });
+  const H = y - lead;
+  out.setAttribute('width', W);
+  out.setAttribute('height', H);
+  return { node: out, w: W, h: H };
+}
+
 /* ---------- rendering */
 const isSel = (t, id) => sel && sel.t === t && sel.id === id;
 
@@ -50,7 +101,7 @@ function bracePath(x1, x2, y, d) {
 function renderNode(n) {
   const g = el('g', { class: 'node', 'data-id': n.id }, nodesL);
   const F = state.settings.math;
-  const L = n.tex ? texSVG(n.tex, F) : null;
+  let L = n.tex ? texSVG(n.tex, F) : null;
   let w,
     h,
     src,
@@ -77,6 +128,11 @@ function renderNode(n) {
         'font-family': 'Helvetica, Arial, sans-serif',
         'font-size': (13 * sc).toFixed(1),
         fill: INK,
+        // a white halo keeps the name readable over the bars of discrete distributions
+        stroke: '#ffffff',
+        'stroke-width': (3 * sc).toFixed(1),
+        'stroke-linejoin': 'round',
+        'paint-order': 'stroke',
       },
       g,
     );
@@ -84,6 +140,14 @@ function renderNode(n) {
     if (L) {
       lx = w * D.lab[0] - L.w / 2 + (n.dx || 0);
       ly = h * D.lab[1] - L.h / 2 + (n.dy || 0);
+      // long parameter lists wrap rather than run across neighbouring curves; the extra lines
+      // go upwards, away from the curve
+      const B = L.w > w * 1.25 && texBlock(n.tex, F, w * 1.1);
+      if (B) {
+        lx = w * D.lab[0] - B.w / 2 + (n.dx || 0);
+        ly += L.h - B.h;
+        L = B;
+      }
     }
     src = { x: w / 2, y: h + 9 };
   } else {
@@ -269,6 +333,7 @@ function edgeSegs(e, m) {
 
 function drawEdges() {
   edgesL.replaceChildren();
+  edgeHitsL.replaceChildren();
   const m = toVP();
   const fs = Math.max(15, state.settings.math * 0.64);
   for (const e of state.edges) {
@@ -299,6 +364,23 @@ function drawEdges() {
           'stroke-width': 14,
         },
         g,
+      );
+      // a wide click target above the nodes, along the middle of the arrow so its ends don't
+      // cover the nodes it joins; the same width on screen at any zoom
+      el(
+        'line',
+        {
+          class: 'hit edge-hit',
+          'data-id': e.id,
+          x1: s.x + dx * 0.15,
+          y1: s.y + dy * 0.15,
+          x2: s.x + dx * 0.85,
+          y2: s.y + dy * 0.85,
+          stroke: 'transparent',
+          'stroke-width': 16,
+          'vector-effect': 'non-scaling-stroke',
+        },
+        edgeHitsL,
       );
       el('line', { x1: s.x, y1: s.y, x2: bx, y2: by, stroke: INK, 'stroke-width': 1.5 }, g);
       el(

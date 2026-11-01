@@ -193,9 +193,22 @@
         </div>
         <div class="code-body">
           <textarea id="code" spellcheck="false" aria-label="JAGS model code"></textarea>
+          <p class="sync-note" id="syncNote" hidden>
+            The code has changed since the diagram was drawn.
+          </p>
           <button class="btn primary" id="btnDraw">Draw diagram from code</button>
           <ul id="msgs" aria-live="polite"></ul>
         </div>
+        <div
+          class="splitter"
+          id="splitter"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize the code editor"
+          aria-valuemin="260"
+          aria-valuemax="720"
+          tabindex="0"
+        ></div>
       </section>
 
       <main class="stage" id="stage">
@@ -203,6 +216,7 @@
           <g id="vp" style="color: #111111">
             <g id="edgesL"></g>
             <g id="nodesL"></g>
+            <g id="edgeHitsL"></g>
           </g>
         </svg>
         <div class="hint">Drag nodes · scroll to zoom · drag paper to pan</div>
@@ -219,9 +233,21 @@
         <h2 id="dlgTitle">Unsaved changes</h2>
         <p>You have unsaved changes. Save them before opening another workspace?</p>
         <div class="dialog-actions">
-          <button class="btn" id="dlgCancel">Cancel</button>
+          <button class="btn" id="dlgCancel" data-cancel>Cancel</button>
           <button class="btn" id="dlgDiscard">Don’t save</button>
           <button class="btn primary" id="dlgSave">Save first</button>
+        </div>
+      </dialog>
+
+      <dialog class="dialog" id="redrawDialog" aria-labelledby="dlgRedrawTitle">
+        <h2 id="dlgRedrawTitle">Redraw the diagram?</h2>
+        <p>
+          This replaces your changes to the diagram (moved nodes, edited labels, arrows). Undo
+          brings them back.
+        </p>
+        <div class="dialog-actions">
+          <button class="btn" id="dlgKeep" data-cancel>Cancel</button>
+          <button class="btn primary" id="dlgRedraw">Redraw</button>
         </div>
       </dialog>
 

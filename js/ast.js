@@ -62,6 +62,19 @@ function terms(a) {
   return [a];
 }
 
+/** Names of the variables an expression uses, not counting those only inside index brackets. */
+function topRefs(a, out = new Set()) {
+  a = strip(a);
+  if (!a) return out;
+  if (a.k === 'ref') out.add(a.name);
+  else if (a.k === 'bin' || a.k === 'range') {
+    topRefs(a.a, out);
+    topRefs(a.b, out);
+  } else if (a.k === 'neg') topRefs(a.a, out);
+  else if (a.k === 'call') a.args.forEach(x => topRefs(x, out));
+  return out;
+}
+
 function hasRef(a) {
   let h = false;
   walk(a, () => {
@@ -87,11 +100,18 @@ function isPredictor(a) {
  * JAGS gives normal/t spreads as a precision. Recover the spread the user had in mind:
  *   1/S^2, 1/pow(S,2), 1/(S*S), pow(S,-2), S^-2  → { a: S, kind: 'sd' }
  *   1/V, pow(V,-1), V^-1                         → { a: V, kind: 'var' }
+ *   a number p                                   → { a: 1/√p, kind: 'sd' }
  * Anything else (e.g. a named precision tau) → null, and is shown as written.
  */
 function precToScale(a) {
   a = strip(a);
   if (!a) return null;
+  if (a.k === 'num' && +a.v > 0) {
+    const sd = 1 / Math.sqrt(+a.v);
+    const v =
+      sd >= 1e4 || sd < 1e-3 ? (+sd.toPrecision(3)).toExponential() : String(+sd.toPrecision(3));
+    return { a: { k: 'num', v }, kind: 'sd' };
+  }
   const isNum = (x, v) => (x = strip(x)) && x.k === 'num' && +x.v === v;
   const isNeg = (x, v) => (x = strip(x)) && x.k === 'neg' && isNum(x.a, v);
   const sq = b => {

@@ -3,14 +3,20 @@
  *
  * Every save() records a snapshot of the nodes, arrows and display settings, so anything that
  * autosaves can be undone, including Auto-layout and redrawing from code. Pan and zoom are not
- * recorded, and the code editor keeps the browser's own undo. History lasts for the session.
+ * recorded, and the code editor keeps the browser's own undo, except that undoing a redraw also
+ * puts back the code it was drawn from (if nothing was typed since). History lasts for the session.
  */
 
 const HISTORY_LIMIT = 100;
 const hist = { past: [], future: [], current: null };
 
 const snapshot = () =>
-  JSON.stringify({ nodes: state.nodes.map(clean), edges: state.edges, settings: state.settings });
+  JSON.stringify({
+    nodes: state.nodes.map(clean),
+    edges: state.edges,
+    settings: state.settings,
+    drawn: state.drawn,
+  });
 
 /** Add the current diagram as a new step, unless nothing changed since the last one. */
 function recordHistory() {
@@ -52,9 +58,14 @@ function restoreSnapshot(s) {
   hist.current = s;
   const before = new Set(state.nodes.map(n => n.id));
   const o = JSON.parse(s);
+  // undoing or redoing a redraw: bring the code back too, unless it has been typed in since
+  const code = $('#code');
+  if (o.drawn.code !== state.drawn.code && code.value === state.drawn.code && o.drawn.code != null)
+    code.value = o.drawn.code;
   state.nodes = o.nodes;
   state.edges = o.edges;
   state.settings = o.settings;
+  state.drawn = o.drawn;
   // keep the selection only if what it points at still exists
   if (sel && !(sel.t === 'node' ? byId(sel.id) : state.edges.some(e => e.id === sel.id)))
     sel = null;
@@ -62,6 +73,7 @@ function restoreSnapshot(s) {
   // a whole different set of nodes (undoing or redoing a redraw from code): bring it into view
   if (!state.nodes.some(n => before.has(n.id))) fit();
   renderInspector();
+  updateSync();
   persist();
   updateHistoryButtons();
 }

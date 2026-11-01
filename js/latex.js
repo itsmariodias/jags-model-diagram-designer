@@ -1,7 +1,8 @@
 /*
  * JAGS expression AST → LaTeX.
  *
- * Variable names become math symbols (beta0 → \beta_0, sigma_y → \sigma_y). References to other
+ * Variable names become math symbols (beta0 → \beta_0, sigma_y → \sigma_y, omegaO → \omega_O,
+ * kappaMinusTwo → (\kappa-2)). References to other
  * nodes are wrapped in \anchor{…}{…} so arrows can point at the exact symbol they feed.
  * Each tex() result carries a precedence `p` used to decide where parentheses are needed.
  */
@@ -12,6 +13,8 @@ const GREEK = new Set(
   ),
 );
 
+const NUMBER_WORDS = 'One Two Three Four Five Six Seven Eight Nine Ten'.split(' ');
+
 function texName(name) {
   let parts = name.split(/[._]/).filter(Boolean);
   let base = parts.shift() || name;
@@ -21,14 +24,26 @@ function texName(name) {
   if (camel) base = camel[1];
   parts = parts.filter(p => !/^prime$/i.test(p));
   let subs = parts;
+  // Kruschke-style names: kappaMinusTwo → (κ−2), omegaO → ω_O, kappaMinusTwoO → (κ−2)_O
+  let minus = '';
+  const g =
+    /^([a-z]+)(?:Minus(One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten|\d+))?([A-Z]\w*)?$/.exec(
+      base,
+    );
+  if (g && GREEK.has(g[1]) && (g[2] || g[3])) {
+    base = g[1];
+    if (g[2]) minus = /^\d/.test(g[2]) ? g[2] : String(NUMBER_WORDS.indexOf(g[2]) + 1);
+    if (g[3]) subs = [g[3], ...subs];
+  }
   const m = /^([A-Za-z]+?)(\d+)$/.exec(base);
   if (m) {
     base = m[1];
     subs = [m[2], ...subs];
   }
-  const b = GREEK.has(base) ? '\\' + base : base.length === 1 ? base : '\\mathit{' + base + '}';
+  let b = GREEK.has(base) ? '\\' + base : base.length === 1 ? base : '\\mathit{' + base + '}';
+  if (minus) b = '(' + b + (prime ? "'" : '') + '-' + minus + ')';
   return {
-    b: prime ? b + "'" : b,
+    b: prime && !minus ? b + "'" : b,
     subs: subs.map(s => (s.length === 1 || /^\d+$/.test(s) ? s : '\\mathrm{' + s + '}')),
   };
 }

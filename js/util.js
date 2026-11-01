@@ -31,3 +31,37 @@ const esc = s =>
 /** Ids for nodes ("n12") and edges ("e13"). `uid` is bumped past saved ids when a diagram is loaded. */
 let uid = 1;
 const nid = prefix => prefix + uid++;
+
+/** Short string fingerprint (cyrb53), used to tell whether something changed. */
+function hash(s) {
+  let h1 = 0xdeadbeef,
+    h2 = 0x41c6ce57;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    h1 = Math.imul(h1 ^ c, 2654435761);
+    h2 = Math.imul(h2 ^ c, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
+}
+
+/**
+ * Show a modal <dialog>. `actions` maps button ids to what each one does; other buttons just
+ * close it. Escape counts as clicking the button marked data-cancel. Actions run inside the
+ * button's click, so they may open a file picker.
+ */
+function askDialog(dlg, focus, actions) {
+  dlg.querySelectorAll('button').forEach(b => {
+    b.onclick = () => {
+      dlg.close();
+      if (actions[b.id]) actions[b.id]();
+    };
+  });
+  dlg.oncancel = e => {
+    e.preventDefault(); // Escape: go through the cancel button so its action runs too
+    dlg.querySelector('[data-cancel]').click();
+  };
+  dlg.showModal();
+  focus.focus();
+}

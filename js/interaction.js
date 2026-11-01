@@ -26,7 +26,7 @@ function initCanvasInteraction() {
   svg.addEventListener('pointerdown', e => {
     if (e.button !== 0) return;
     const ng = e.target.closest('.node'),
-      eg = e.target.closest('.edge');
+      eg = e.target.closest('.edge, .edge-hit');
     svg.setPointerCapture(e.pointerId);
     if (ng) {
       const n = byId(ng.dataset.id);
@@ -119,7 +119,47 @@ function viewCenter() {
   return new DOMPoint(r.left + r.width / 2, r.top + r.height / 2).matrixTransform(toVP());
 }
 
-/** Add a placeholder node of the given kind ('dist' | 'expr' | 'data') at the centre of the view. */
+/** Does node n's extent overlap any other node's (with a margin)? */
+function overlapsOthers(n) {
+  const m = 16;
+  return state.nodes.some(
+    o =>
+      o !== n &&
+      o._g &&
+      n.cx - n._left < o.cx + o._right + m &&
+      o.cx - o._left < n.cx + n._right + m &&
+      Math.abs(n.cy - o.cy) < (n._h + o._h) / 2 + m,
+  );
+}
+
+/** Move a freshly rendered node to the nearest free spot around where it is. */
+function findFreeSpot(n) {
+  const x0 = n.cx,
+    y0 = n.cy,
+    step = 40;
+  if (!overlapsOthers(n)) return;
+  for (let r = 1; r <= 25; r++) {
+    // try the ring at distance r: below, right, left, above
+    for (const [dx, dy] of [
+      [0, 1],
+      [1, 0],
+      [-1, 0],
+      [0, -1],
+      [1, 1],
+      [-1, 1],
+      [1, -1],
+      [-1, -1],
+    ]) {
+      n.cx = x0 + dx * r * step;
+      n.cy = y0 + dy * r * step;
+      if (!overlapsOthers(n)) return;
+    }
+  }
+  n.cx = x0; // nowhere free nearby: stay in the middle
+  n.cy = y0;
+}
+
+/** Add a placeholder node of the given kind ('dist' | 'expr' | 'data') near the centre of the view, clear of other nodes. */
 function addNode(kind) {
   const p = viewCenter();
   const n = { id: nid('n'), kind, cx: p.x, cy: p.y };
@@ -132,9 +172,11 @@ function addNode(kind) {
     n.tex = '\\beta_0+\\beta_1 x_i';
     n.brace = true;
   }
-  if (kind === 'data') n.tex = 'y_i';
+  if (kind === 'data') n.tex = '\\text{Label}';
   state.nodes.push(n);
   sel = { t: 'node', id: n.id };
+  renderAll();
+  findFreeSpot(n);
   renderAll();
   renderInspector();
   save();

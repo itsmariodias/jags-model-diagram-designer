@@ -1,6 +1,7 @@
 /*
  * Auto-layout: arrange nodes in layers from the top-level priors down to the data, then centre
- * each node over the symbols its arrows point at.
+ * each node over the symbols its arrows point at. Nodes with no arrows at all (titles, notes)
+ * go in a row above the diagram.
  */
 
 function measureAnchors() {
@@ -20,12 +21,17 @@ function measureAnchors() {
 function autoLayout() {
   renderAll();
   measureAnchors();
-  const N = state.nodes,
-    out = {};
-  N.forEach(n => (out[n.id] = []));
+  const out = {},
+    linked = new Set();
+  state.nodes.forEach(n => (out[n.id] = []));
   state.edges.forEach(e => {
-    if (out[e.from] && byId(e.to)) out[e.from].push(e);
+    if (out[e.from] && byId(e.to)) {
+      out[e.from].push(e);
+      linked.add(e.from).add(e.to);
+    }
   });
+  const loose = state.nodes.filter(n => !linked.has(n.id) && linked.size);
+  const N = state.nodes.filter(n => !loose.includes(n));
   const depth = {},
     vis = new Set();
   const d = id => {
@@ -71,6 +77,19 @@ function autoLayout() {
     for (let i = 1; i < L; i++) p1[i] = Math.max(p1[i], p1[i - 1] + sep(i));
     for (let i = L - 2; i >= 0; i--) p2[i] = Math.min(p2[i], p2[i + 1] - sep(i + 1));
     items.forEach((x, i) => (x.n.cx = (p1[i] + p2[i]) / 2));
+  }
+  if (loose.length) {
+    // a centred row above the top layer
+    const H = Math.max(...loose.map(n => n._h));
+    const mid =
+      (Math.min(...N.map(n => n.cx - n._left)) + Math.max(...N.map(n => n.cx + n._right))) / 2;
+    const widths = loose.map(n => n._left + n._right);
+    let x = mid - (widths.reduce((a, b) => a + b, 0) + gx * (loose.length - 1)) / 2;
+    loose.forEach((n, i) => {
+      n.cx = x + n._left;
+      n.cy = -gap - H / 2;
+      x += widths[i] + gx;
+    });
   }
   renderAll();
   fit();
