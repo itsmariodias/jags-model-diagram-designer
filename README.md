@@ -21,52 +21,21 @@ python3 -m http.server 8000
 
 ## Using it
 
-1. **Write or paste a model** in the left pane (or pick one from _Load example…_), then press **Draw diagram from code** (or <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Enter</kbd>). Drag the pane's right edge to make the editor wider. If the code has a mistake, the message names the line, and clicking it selects that line.
-2. **Arrange** – drag nodes to move them, drag the paper to pan, scroll to zoom. _Auto-layout_ rearranges everything in layers; _Fit_ zooms to the whole diagram.
-3. **Edit** – click a curve, expression or arrow to edit it in the inspector on the right. You can change the distribution shape, the name on its baseline, its LaTeX parameters (with a live preview underneath that also flags LaTeX mistakes), icon size and label position, or an arrow's relation (`~` / `=`), target symbol and index label. The _+ Add_ menu adds a new distribution, expression or label, placed clear of the other nodes. Labels are maths, so put words in `\text{…}` (the preview offers to do it for you). <kbd>Delete</kbd> removes the selection.
-4. **Undo / redo** – <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Z</kbd> and <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> (or <kbd>Ctrl</kbd>+<kbd>Y</kbd>), or the undo / redo buttons in the toolbar. Every change to the diagram can be undone, including _Auto-layout_ and redrawing from code. The code editor keeps its own undo.
-5. **Export** – the _Export_ menu has _Copy SVG_, _Save SVG_ and _Save PNG_ (3× resolution). Exports are always on white paper.
+1. **Write or paste a model** in the left pane, or pick one from _Load example…_, then press **Draw diagram from code** (<kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Enter</kbd>).
+2. **Arrange** it: drag nodes to move them, drag the paper to pan, and scroll to zoom. _Auto-layout_ tidies everything into rows; _Fit_ zooms to the whole diagram.
+3. **Edit** it: click a curve, expression or arrow to change it in the panel on the right. _+ Add_ adds a new distribution, expression or label.
+4. **Export** it from the _Export_ menu as SVG or PNG.
 
-Your diagram, code and settings are autosaved in the browser (localStorage), so a reload picks up where you left off. Edits in the diagram are **not** written back to the JAGS code:
+Undo and redo work as usual (<kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Z</kbd>, <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd>). Your work is kept in the browser between visits, and the **File** menu saves it to a file or opens one again.
 
-- Redrawing from code replaces the diagram. If you've changed the diagram by hand since it was drawn, the app asks first.
-- When the code no longer matches what the diagram was drawn from, a note above the Draw button says so.
-- Undoing a redraw also puts back the code it was drawn from, unless you've typed in the editor since.
+Changes you make to the diagram don't go back into the JAGS code, so redrawing from code replaces them (the app asks first).
 
-### Saving and opening
+## What it reads
 
-The **File** menu saves your workspace (the JAGS code, the diagram and the display settings) as a `.json` file, and opens one again. <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>S</kbd> saves and <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>O</kbd> opens; you can also drop a workspace file onto the page. Workspace files are a good way to keep several diagrams, move work to another computer, or send a diagram to someone.
-
-- A dot on **File** means there are changes you haven't saved to a file yet.
-- Opening a file when you have unsaved changes asks whether to save them first.
-- Undo history isn't saved; opening a file starts a fresh one.
-- Files from other people are checked before they're used, and links in their LaTeX are disabled.
-
-### Pointing arrows at a symbol
-
-Arrows drawn from your code already point at the right symbols, so usually there's nothing to do. If you draw an arrow yourself, it points at the whole label of the node it goes to. To point it at one symbol, mark that symbol in the node's label: wrap it as `\anchor{s}{\sigma}`, where `s` is any short name and `\sigma` is the symbol. It then appears under the arrow's _Points at_ setting. Keep those wrappers when you edit a label; if an arrow loses its symbol, the preview under the label says so.
-
-### Theme
-
-The toolbar button on the right cycles between **System**, **Light** and **Dark**. The choice is remembered. The drawing paper stays white in every theme so it matches what you export.
-
-## What the JAGS reader understands
-
-- `model { … }` blocks (`data { … }` blocks are skipped), `for (i in a:b)` loops, `~` and `<-` statements, and `#` comments.
-- Variable names become math symbols: Greek names become letters, and digits or `.`/`_` parts become subscripts (`beta0` → β₀, `sigma.y` → σ<sub>y</sub>). A `Prime` suffix adds a prime, since JAGS names can't contain `'`: `nuPrime`, `nu.prime` and `nu_prime` all draw as ν′.
-- Kruschke's own naming works too: capitals after a Greek name become a subscript (`omegaO` → ω<sub>O</sub>), and `Minus<number>` becomes the subtraction (`kappaMinusTwo` → (κ−2), `nuMinusOne` → (ν−1)).
-- Arrow index labels follow the book: a `~` arrow carries every loop index of what it draws (beta → θ<sub>s</sub> is labelled _s_), and an `=` arrow the indices the expression it feeds doesn't loop over.
-- Link functions on the left-hand side, such as `logit(p[i]) <- …`, which are drawn as their inverse (`logistic(…)`).
-- Truncation `T(0,)` / `I(0,)` on `dnorm` and `dt`, drawn as half-normal, half-t or half-Cauchy.
-- Distributions: `dnorm`, `dt`, `dgamma`, `dbeta`, `dunif`, `dexp`, `dlnorm`, `dlogis`, `ddexp`, `dweib`, `dchisqr`, `dpar`, `dbern`, `dbin`/`dbinom`, `dpois`, `dnegbin`, `dcat`, `ddirch`/`ddirich`, `dmnorm`, `dmt`. Anything else gets a generic curve with its name.
-
-To keep diagrams readable, it also simplifies a few things and leaves a note under the editor each time:
-
-- Normal and t **precisions** are shown as the spread you wrote them from: `1/S^2`, `1/pow(S,2)` or `pow(S,-2)` as the standard deviation `S`, and `1/V` or `pow(V,-1)` as the variance `V`. A number is shown as the standard deviation it stands for (`1.0E-6` → 1000). A precision defined on its own line, such as `tau <- 1/sigma^2`, is treated the same way if it is only used as a precision. One with its own prior (`tau ~ dgamma(…)`) is shown as written.
-- **Linear predictors** (sums of terms, `inprod`, or those wrapped in `ilogit`/`exp`/`phi`) get their own bracketed expression node, even when written inline in a distribution.
-- **Indexed deterministic helpers** that combine several variables, such as `sh[i] <- pow(mu[i], 2) / pow(sigma, 2)`, are folded into the parameters that use them. Scalars such as `nu <- nuMinusOne + 1`, and helpers built from a single variable such as `kappa[c] <- kappaMinusTwo[c] + 2`, keep their own node, so ν and κ still appear where they are used.
-- **Small literal loops** (up to 8 iterations) over priors that the model uses one at a time, such as `beta[1]`, `beta[2]`, …, are drawn as separate distributions.
-- **Entries written at fixed indices** link up with how the model uses them. If you write `alpha[1] ~ dnorm(…)`, `alpha[2] <- 0` and `alpha[3] ~ dnorm(…)` but use `alpha[g[i]]`, each entry gets an arrow to α labelled with its index. In the other direction, `beta[1]` used against a general `beta[j] ~ …` prior is linked to that prior.
+- `model { … }` blocks with `for` loops, `~` and `<-` statements, and `#` comments.
+- The common JAGS distributions (`dnorm`, `dt`, `dgamma`, `dbeta`, `dbern`, `dbin`, `dpois`, and more). Anything else gets a generic curve.
+- Variable names become symbols: `beta0` → β₀, `sigma.y` → σ<sub>y</sub>, `omegaO` → ω<sub>O</sub>.
+- Normal and t precisions such as `1/sigma^2` are shown as the standard deviation σ, as in Kruschke's diagrams.
 
 ## Project structure
 

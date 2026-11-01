@@ -18,7 +18,7 @@ let state = {
   nodes: [],
   edges: [],
   code: EXAMPLES.gamma5,
-  settings: { math: 28, icon: 1, gap: 64 },
+  settings: { math: 28, icon: 1, name: 1, gap: 64 },
   drawn: { code: null, key: null },
 };
 

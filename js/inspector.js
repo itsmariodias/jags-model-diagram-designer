@@ -111,16 +111,31 @@ function wrappingMath(t, px) {
   return math;
 }
 
-function rangeField(label, id, min, max, step, val, fmt, on) {
+/** A labelled slider. With `def`, a Reset button puts it back to that value. */
+function rangeField(label, id, min, max, step, val, fmt, on, def) {
   const f = document.createElement('div');
   f.className = 'field';
   f.innerHTML = `<label for="${id}">${label}</label><div class="range"><input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${val}"><output>${fmt(val)}</output></div>`;
   const i = f.querySelector('input'),
     o = f.querySelector('output');
-  i.addEventListener('input', () => {
-    o.textContent = fmt(+i.value);
-    on(+i.value);
-  });
+  const set = v => {
+    o.textContent = fmt(v);
+    if (r) r.disabled = v === def;
+    on(v);
+  };
+  let r = null;
+  if (def !== undefined) {
+    r = h(
+      `<button class="reset" type="button" aria-label="Reset ${esc(label)}" title="Reset to ${esc(fmt(def))}">↺</button>`,
+    );
+    r.disabled = val === def;
+    r.addEventListener('click', () => {
+      i.value = def;
+      set(def);
+    });
+    f.querySelector('.range').append(r);
+  }
+  i.addEventListener('input', () => set(+i.value));
   return f;
 }
 
@@ -144,11 +159,12 @@ function renderInspector() {
           renderAll();
           save();
         },
+        28,
       ),
     );
     insp.append(
       rangeField(
-        'Icon size',
+        'Icon size (all icons)',
         'setIcon',
         0.6,
         1.8,
@@ -160,6 +176,24 @@ function renderInspector() {
           renderAll();
           save();
         },
+        1,
+      ),
+    );
+    insp.append(
+      rangeField(
+        'Distribution name size',
+        'setName',
+        0.5,
+        2,
+        0.05,
+        state.settings.name || 1,
+        v => Math.round(v * 100) + '%',
+        v => {
+          state.settings.name = v;
+          renderAll();
+          save();
+        },
+        1,
       ),
     );
     insp.append(
@@ -175,6 +209,7 @@ function renderInspector() {
           state.settings.gap = v;
           save();
         },
+        64,
       ),
     );
     insp.append(h('<div class="divider"></div>'));
@@ -233,6 +268,23 @@ function renderInspector() {
         save();
       });
       insp.append(fn);
+      insp.append(
+        rangeField(
+          'This name’s size (on top of the overall name size)',
+          'iNameSize',
+          0.5,
+          2,
+          0.05,
+          n.nameSize || 1,
+          v => Math.round(v * 100) + '%',
+          v => {
+            n.nameSize = v;
+            renderAll();
+            save();
+          },
+          1,
+        ),
+      );
     }
     const ft = h(
       `<div class="field"><label for="iTex">${n.kind === 'dist' ? 'Parameters' : 'Label'} (LaTeX)</label><textarea id="iTex" spellcheck="false" aria-describedby="iTexPreview">${esc(n.tex || '')}</textarea><div class="tex-preview" id="iTexPreview" aria-live="polite"></div></div>`,
@@ -260,7 +312,7 @@ function renderInspector() {
     if (n.kind === 'dist') {
       insp.append(
         rangeField(
-          'Icon size',
+          'This icon’s size (on top of the overall icon size)',
           'iSize',
           0.5,
           2,
@@ -272,6 +324,7 @@ function renderInspector() {
             renderAll();
             save();
           },
+          1,
         ),
       );
       insp.append(
@@ -288,6 +341,7 @@ function renderInspector() {
             renderAll();
             save();
           },
+          0,
         ),
       );
       insp.append(
@@ -304,6 +358,7 @@ function renderInspector() {
             renderAll();
             save();
           },
+          0,
         ),
       );
     }

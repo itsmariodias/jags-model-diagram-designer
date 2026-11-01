@@ -60,8 +60,14 @@ function restoreSnapshot(s) {
   const o = JSON.parse(s);
   // undoing or redoing a redraw: bring the code back too, unless it has been typed in since
   const code = $('#code');
-  if (o.drawn.code !== state.drawn.code && code.value === state.drawn.code && o.drawn.code != null)
+  if (
+    o.drawn.code !== state.drawn.code &&
+    code.value === state.drawn.code &&
+    o.drawn.code != null
+  ) {
     code.value = o.drawn.code;
+    updateGutter();
+  }
   state.nodes = o.nodes;
   state.edges = o.edges;
   state.settings = o.settings;
@@ -88,7 +94,8 @@ function initHistory() {
   $('#btnRedo').addEventListener('click', redo);
   document.addEventListener('keydown', e => {
     if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
-    if (e.target.closest('input,textarea,select')) return; // let text fields undo their own typing
+    // text boxes undo their own typing; anywhere else (sliders, buttons, the canvas) it's the diagram
+    if (isTextField(e.target)) return;
     const k = e.key.toLowerCase();
     if (k === 'z' && !e.shiftKey) {
       e.preventDefault();

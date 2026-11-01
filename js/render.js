@@ -119,6 +119,8 @@ function renderNode(n) {
     );
     drawDist(g, D, w, h, sc);
     el('line', { x1: -6 * sc, y1: h, x2: w + 6 * sc, y2: h, stroke: INK, 'stroke-width': 1.6 }, g);
+    // name size: the diagram's setting times this node's own, on top of the icon size
+    const ns = (state.settings.name || 1) * (n.nameSize || 1);
     const t = el(
       'text',
       {
@@ -126,11 +128,11 @@ function renderNode(n) {
         y: h - 5 * sc,
         'text-anchor': 'middle',
         'font-family': 'Helvetica, Arial, sans-serif',
-        'font-size': (13 * sc).toFixed(1),
+        'font-size': (13 * sc * ns).toFixed(1),
         fill: INK,
         // a white halo keeps the name readable over the bars of discrete distributions
         stroke: '#ffffff',
-        'stroke-width': (3 * sc).toFixed(1),
+        'stroke-width': (3 * sc * ns).toFixed(1),
         'stroke-linejoin': 'round',
         'paint-order': 'stroke',
       },
@@ -189,6 +191,8 @@ function renderNode(n) {
   n._h = h;
   n._left = w / 2 - x0; // distance from the centre to the left edge of the extent
   n._right = x1 - w / 2;
+  n._top = h / 2 - y0; // … and to its top and bottom edges
+  n._bottom = y1 - h / 2;
   n._src = src;
   n._g = g;
   g.setAttribute('transform', `translate(${n.cx - w / 2},${n.cy - h / 2})`);
@@ -316,8 +320,9 @@ function edgeSegs(e, m) {
     const r = labelRect(B, m);
     rects = [{ r, sc: r }];
   }
+  // a symbol used more than once gets one arrow, to its nearest copy, as in the book
   const dist = o => Math.hypot(o.r.x + o.r.w / 2 - s.x, o.r.y + o.r.h / 2 - s.y);
-  if (e.type !== '=' && rects.length > 1) {
+  if (rects.length > 1) {
     rects.sort((a, b) => dist(a) - dist(b));
     rects = [rects[0]];
   }
@@ -365,19 +370,19 @@ function drawEdges() {
         },
         g,
       );
-      // a wide click target above the nodes, along the middle of the arrow so its ends don't
-      // cover the nodes it joins; the same width on screen at any zoom
+      // a wide click target above the nodes, the same width on screen at any zoom; it starts a
+      // little way out so the node the arrow leaves can still be grabbed right below it
       el(
         'line',
         {
           class: 'hit edge-hit',
           'data-id': e.id,
-          x1: s.x + dx * 0.15,
-          y1: s.y + dy * 0.15,
-          x2: s.x + dx * 0.85,
-          y2: s.y + dy * 0.85,
+          x1: s.x + dx * 0.06,
+          y1: s.y + dy * 0.06,
+          x2: t.x,
+          y2: t.y,
           stroke: 'transparent',
-          'stroke-width': 16,
+          'stroke-width': 20,
           'vector-effect': 'non-scaling-stroke',
         },
         edgeHitsL,

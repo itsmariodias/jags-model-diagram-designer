@@ -60,7 +60,7 @@ function parseWorkspace(o) {
     const n = { id: String(x.id), kind: x.kind, cx: x.cx, cy: x.cy };
     if (x.kind === 'dist') n.dist = isStr(x.dist) && DISTS[x.dist] ? x.dist : 'generic';
     for (const k of ['tex', 'name', 'info']) if (isStr(x[k])) n[k] = x[k];
-    for (const k of ['size', 'dx', 'dy']) if (isNum(x[k])) n[k] = x[k];
+    for (const k of ['size', 'nameSize', 'dx', 'dy']) if (isNum(x[k])) n[k] = x[k];
     if (typeof x.brace === 'boolean') n.brace = x.brace;
     ids.add(n.id);
     nodes.push(n);
@@ -89,6 +89,7 @@ function parseWorkspace(o) {
   const settings = {
     math: clamp(s.math, 16, 48, 28),
     icon: clamp(s.icon, 0.6, 1.8, 1),
+    name: clamp(s.name, 0.5, 2, 1),
     gap: clamp(s.gap, 20, 180, 64),
   };
   const code = isStr(o.code) ? o.code : '';
@@ -138,9 +139,10 @@ async function openWorkspaceFile(file) {
 
 /**
  * Run `next` now if there's nothing unsaved; otherwise ask first (Save first / Don't save /
- * Cancel). `next` runs inside the button's click, so it may open the file picker.
+ * Cancel, which runs `onCancel`). `next` runs inside the button's click, so it may open the
+ * file picker.
  */
-function confirmUnsaved(next) {
+function confirmUnsaved(next, onCancel) {
   if (!isDirty()) return next();
   askDialog($('#unsavedDialog'), $('#dlgSave'), {
     dlgSave: () => {
@@ -148,6 +150,7 @@ function confirmUnsaved(next) {
       next();
     },
     dlgDiscard: next,
+    dlgCancel: onCancel,
   });
 }
 

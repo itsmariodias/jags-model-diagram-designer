@@ -75,6 +75,15 @@ function initCanvasInteraction() {
     else if (!d.moved && sel) select(null);
   });
 
+  // highlight the arrow under the pointer, so it's clear what a click will pick
+  const hover = (e, on) => {
+    const h = e.target.closest('.edge-hit');
+    const g = h && edgesL.querySelector(`.edge[data-id="${CSS.escape(h.dataset.id)}"]`);
+    if (g) g.classList.toggle('hover', on);
+  };
+  edgeHitsL.addEventListener('pointerover', e => hover(e, true));
+  edgeHitsL.addEventListener('pointerout', e => hover(e, false));
+
   // zoom around the cursor
   svg.addEventListener(
     'wheel',
@@ -128,7 +137,8 @@ function overlapsOthers(n) {
       o._g &&
       n.cx - n._left < o.cx + o._right + m &&
       o.cx - o._left < n.cx + n._right + m &&
-      Math.abs(n.cy - o.cy) < (n._h + o._h) / 2 + m,
+      n.cy - n._top < o.cy + o._bottom + m &&
+      o.cy - o._top < n.cy + n._bottom + m,
   );
 }
 

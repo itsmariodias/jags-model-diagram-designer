@@ -2,7 +2,7 @@
  * JAGS expression AST → LaTeX.
  *
  * Variable names become math symbols (beta0 → \beta_0, sigma_y → \sigma_y, omegaO → \omega_O,
- * kappaMinusTwo → (\kappa-2)). References to other
+ * kappaMinusTwo[c] → (\kappa_c-2)). References to other
  * nodes are wrapped in \anchor{…}{…} so arrows can point at the exact symbol they feed.
  * Each tex() result carries a precedence `p` used to decide where parentheses are needed.
  */
@@ -24,7 +24,7 @@ function texName(name) {
   if (camel) base = camel[1];
   parts = parts.filter(p => !/^prime$/i.test(p));
   let subs = parts;
-  // Kruschke-style names: kappaMinusTwo → (κ−2), omegaO → ω_O, kappaMinusTwoO → (κ−2)_O
+  // Kruschke-style names: omegaO → ω_O, kappaMinusTwo[c] → (κ_c−2), kappaMinusTwoO → (κ_O−2)
   let minus = '';
   const g =
     /^([a-z]+)(?:Minus(One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten|\d+))?([A-Z]\w*)?$/.exec(
@@ -40,11 +40,11 @@ function texName(name) {
     base = m[1];
     subs = [m[2], ...subs];
   }
-  let b = GREEK.has(base) ? '\\' + base : base.length === 1 ? base : '\\mathit{' + base + '}';
-  if (minus) b = '(' + b + (prime ? "'" : '') + '-' + minus + ')';
+  const b = GREEK.has(base) ? '\\' + base : base.length === 1 ? base : '\\mathit{' + base + '}';
   return {
-    b: prime && !minus ? b + "'" : b,
+    b: prime ? b + "'" : b,
     subs: subs.map(s => (s.length === 1 || /^\d+$/.test(s) ? s : '\\mathrm{' + s + '}')),
+    minus, // drawn after the subscripts, in brackets: (κ_c − 2)
   };
 }
 
@@ -59,7 +59,7 @@ function fmtNum(v) {
 }
 
 function texRef(r, A, self) {
-  const { b, subs } = texName(r.name);
+  const { b, subs, minus } = texName(r.name);
   const ix = (r.idx || [])
     .filter(Boolean)
     .map(x => (x.k === 'num' ? x.v : x.k === 'range' ? tex(x.a).s + '{:}' + tex(x.b).s : tex(x).s));
@@ -67,7 +67,7 @@ function texRef(r, A, self) {
   const kk = keyOf(r);
   let s = A && A.has(kk) && kk !== self ? '\\anchor{' + cls(kk) + '}{' + b + '}' : b;
   if (all.length) s += '_{' + all.join(all.every(p => p.length === 1) ? '' : ',') + '}';
-  return s;
+  return minus ? '(' + s + '-' + minus + ')' : s;
 }
 
 function tex(a, A, self) {

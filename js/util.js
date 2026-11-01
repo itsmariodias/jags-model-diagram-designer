@@ -32,6 +32,13 @@ const esc = s =>
 let uid = 1;
 const nid = prefix => prefix + uid++;
 
+/** Is el a box you type text into (where Ctrl/⌘+Z should undo typing), rather than a slider, button or checkbox? */
+const isTextField = el =>
+  !!el &&
+  !!el.closest &&
+  (!!el.closest('textarea, [contenteditable]') ||
+    (el.tagName === 'INPUT' && /^(text|search|number|email|url|tel|password)$/.test(el.type)));
+
 /** Short string fingerprint (cyrb53), used to tell whether something changed. */
 function hash(s) {
   let h1 = 0xdeadbeef,

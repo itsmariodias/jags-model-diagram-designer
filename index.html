@@ -190,9 +190,25 @@
             <option value="robust">Robust (t) regression</option>
             <option value="coins">Hierarchical coins (Bernoulli–beta)</option>
           </select>
+          <button
+            class="btn sm"
+            id="btnWrap"
+            aria-pressed="true"
+            title="Wrap long lines in the editor"
+          >
+            Wrap
+          </button>
         </div>
         <div class="code-body">
-          <textarea id="code" spellcheck="false" aria-label="JAGS model code"></textarea>
+          <div class="editor">
+            <div class="gutter" id="gutter" aria-hidden="true"></div>
+            <textarea
+              id="code"
+              class="wrap"
+              spellcheck="false"
+              aria-label="JAGS model code"
+            ></textarea>
+          </div>
           <p class="sync-note" id="syncNote" hidden>
             The code has changed since the diagram was drawn.
           </p>
@@ -231,7 +247,7 @@
 
       <dialog class="dialog" id="unsavedDialog" aria-labelledby="dlgTitle">
         <h2 id="dlgTitle">Unsaved changes</h2>
-        <p>You have unsaved changes. Save them before opening another workspace?</p>
+        <p>You have unsaved changes. Save them before opening something else?</p>
         <div class="dialog-actions">
           <button class="btn" id="dlgCancel" data-cancel>Cancel</button>
           <button class="btn" id="dlgDiscard">Don’t save</button>
@@ -239,31 +255,43 @@
         </div>
       </dialog>
 
-      <dialog class="dialog" id="redrawDialog" aria-labelledby="dlgRedrawTitle">
+      <dialog
+        class="dialog"
+        id="redrawDialog"
+        aria-labelledby="dlgRedrawTitle"
+        aria-describedby="dlgRedrawText"
+      >
         <h2 id="dlgRedrawTitle">Redraw the diagram?</h2>
-        <p>
-          This replaces your changes to the diagram (moved nodes, edited labels, arrows). Undo
-          brings them back.
+        <p id="dlgRedrawText">
+          You’ve changed the diagram since it was drawn. Keep my layout leaves the nodes that are
+          still in the model where you put them; Start over lays everything out afresh. Either way,
+          Undo brings back the diagram as it is now.
         </p>
         <div class="dialog-actions">
           <button class="btn" id="dlgKeep" data-cancel>Cancel</button>
-          <button class="btn primary" id="dlgRedraw">Redraw</button>
+          <button class="btn" id="dlgFresh">Start over</button>
+          <button class="btn primary" id="dlgRedraw">Keep my layout</button>
         </div>
       </dialog>
 
       <footer class="credits">
-        Diagram style from John K. Kruschke’s
-        <a href="https://sites.google.com/site/doingbayesiandataanalysis/"
-          ><i>Doing Bayesian Data Analysis</i></a
+        <span class="credits-text">
+          Diagram style from John K. Kruschke’s
+          <a href="https://sites.google.com/site/doingbayesiandataanalysis/"
+            ><i>Doing Bayesian Data Analysis</i></a
+          >
+          (see also his
+          <a
+            href="https://doingbayesiandataanalysis.blogspot.com/2013/10/diagrams-for-hierarchical-models-new.html"
+            >blog post</a
+          >); distribution icons after
+          <a href="https://github.com/rasmusab/distribution_diagrams"
+            >Rasmus Bååth’s distribution_diagrams</a
+          >. Math by <a href="https://www.mathjax.org/">MathJax</a>.
+        </span>
+        <span class="made-by"
+          >Made by <a href="https://github.com/itsmariodias">@itsmariodias</a></span
         >
-        (see also his
-        <a
-          href="https://doingbayesiandataanalysis.blogspot.com/2013/10/diagrams-for-hierarchical-models-new.html"
-          >blog post</a
-        >); distribution icons after
-        <a href="https://github.com/rasmusab/distribution_diagrams"
-          >Rasmus Bååth’s distribution_diagrams</a
-        >. Math by <a href="https://www.mathjax.org/">MathJax</a>.
       </footer>
     </div>
 
