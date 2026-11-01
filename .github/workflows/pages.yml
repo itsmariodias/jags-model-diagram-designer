@@ -22,6 +22,8 @@ jobs:
         run: for f in js/*.js; do node --check "$f"; done
       - name: Check formatting
         run: npx --yes prettier@3.3.3 --check .
+      - name: Run tests
+        run: node --test 'test/*.test.js'
 
   deploy:
     needs: check

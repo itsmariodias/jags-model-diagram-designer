@@ -62,9 +62,16 @@ js/
   export.js           SVG / PNG export
   workspace.js        save / open workspace files
   main.js             wiring and start-up
+test/                 Node tests for the JAGS reader, diagram builder and workspace files
 ```
 
 The scripts are plain (non-module) scripts that share one global scope, so the page also works when opened directly from disk. Code is formatted with [Prettier](https://prettier.io/) using `.prettierrc.json`.
+
+Tests for reading JAGS code and building diagrams are in `test/` and use Node's built-in test runner (Node 22 or later):
+
+```sh
+node --test 'test/*.test.js'
+```
 
 ## Credits
 
